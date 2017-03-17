@@ -1,0 +1,101 @@
+package pt.code5.micro.utils;
+
+import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
+import io.vertx.core.shareddata.AsyncMap;
+import io.vertx.core.shareddata.SharedData;
+
+/**
+ * Created by eduardo on 17/03/2017.
+ */
+public class Config {
+    private static Config ourInstance = new Config();
+    private Vertx vertx;
+    private JsonObject localConfig = new JsonObject();
+
+    private Config() {
+    }
+
+    public static Config getInstance() {
+        return ourInstance;
+    }
+
+    public void boot(Vertx vertx, Handler<Boolean> ready) {
+        this.vertx = vertx;
+
+        String envFilePath = System.getenv("env_file");
+        if (envFilePath != null) {
+            this.vertx.fileSystem().readFile(envFilePath, response -> {
+                if (response.succeeded()) {
+                    this.localConfig = new JsonObject(response.result().toString());
+                    System.out.println(this.localConfig);
+                } else {
+                    try {
+                        throw response.cause();
+                    } catch (Throwable throwable) {
+                        throwable.printStackTrace();
+                    }
+                }
+                ready.handle(true);
+            });
+        }
+    }
+
+    public void getConfigFromCluster(String key, Handler<JsonObject> success, Handler<JsonObject> error) {
+        SharedData sd = vertx.sharedData();
+        try {
+            sd.<String, JsonObject>getClusterWideMap("config", res -> {
+                if (res.succeeded()) {
+                    AsyncMap<String, JsonObject> map = res.result();
+
+                    map.get(key, resultingKey -> {
+                        if (resultingKey.succeeded()) {
+                            success.handle((new JsonObject()).put("result", resultingKey.result()));
+                        } else {
+                            error.handle(Fail.SHARED_KEY_NOT_DEFINED.toJson());
+                        }
+                    });
+
+                } else {
+                    error.handle(Fail.SHARED_CONFIG_NOT_DEFINED.toJson());
+                }
+            });
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+            error.handle(Fail.NO_CLUSTER.toJson());
+        }
+    }
+
+    public void getConfigFromEnv(String key, Handler<JsonObject> success, Handler<JsonObject> error) {
+        if (!this.localConfig.isEmpty()) {
+
+            Object value = this.localConfig.getValue(key);
+            if (value != null) {
+                success.handle((new JsonObject()).put("result", value));
+            } else {
+                error.handle(Fail.LOCAL_KEY_NOT_DEFINED.toJson());
+            }
+        } else {
+            error.handle(Fail.LOCAL_CONFIG_NOT_DEFINED.toJson());
+        }
+    }
+
+    public void getConfig(String key, Handler<JsonObject> success, Handler<JsonObject> error) {
+        this.getConfigFromCluster(key, success, event -> {
+            this.getConfigFromEnv(key, success, event1 -> {
+                error.handle(Fail.KEY_NOT_DEFINED.toJson());
+            });
+        });
+    }
+
+    public enum Fail {
+        NO_CLUSTER, SHARED_CONFIG_NOT_DEFINED, SHARED_KEY_NOT_DEFINED,
+        LOCAL_CONFIG_NOT_DEFINED, LOCAL_KEY_NOT_DEFINED,
+        KEY_NOT_DEFINED;
+
+        public JsonObject toJson() {
+            return (new JsonObject()).put("reason", this);
+        }
+    }
+}
