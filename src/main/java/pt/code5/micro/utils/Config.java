@@ -5,6 +5,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.AsyncMap;
 import io.vertx.core.shareddata.SharedData;
+import pt.code5.micro.utils.vertx.VertxManager;
 
 /**
  * Created by eduardo on 17/03/2017.
@@ -15,14 +16,14 @@ public class Config {
     private JsonObject localConfig = new JsonObject();
 
     private Config() {
+        this.vertx = VertxManager.getInstance().getVertx();
     }
 
     public static Config getInstance() {
         return ourInstance;
     }
 
-    public void boot(Vertx vertx, Handler<Boolean> ready) {
-        this.vertx = vertx;
+    public void boot(Handler<Boolean> ready) {
 
         String envFilePath = System.getenv("env_file");
         if (envFilePath != null) {
@@ -62,7 +63,7 @@ public class Config {
                 }
             });
         } catch (IllegalStateException e) {
-            e.printStackTrace();
+            System.err.println(e.getMessage());
             error.handle(Fail.NO_CLUSTER.toJson());
         }
     }
