@@ -38,7 +38,7 @@ public class MorphiaManager {
                 future.complete(true);
             }, onComplete);
         }, event -> {
-            System.out.println(configKey + "::" + event.getString("reason"));
+            System.err.println(configKey + "::" + event.getString("reason"));
             System.exit(-1);
         });
 

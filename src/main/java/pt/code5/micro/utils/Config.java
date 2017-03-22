@@ -10,7 +10,7 @@ import pt.code5.micro.utils.vertx.VertxManager;
 /**
  * Created by eduardo on 17/03/2017.
  */
-public class Config {
+public class Config { //todo: replace with http://vertx.io/docs/vertx-config/java/
     private static Config ourInstance = new Config();
     private Vertx vertx;
     private JsonObject localConfig = new JsonObject();
@@ -30,7 +30,6 @@ public class Config {
             this.vertx.fileSystem().readFile(envFilePath, response -> {
                 if (response.succeeded()) {
                     this.localConfig = new JsonObject(response.result().toString());
-                    System.out.println(this.localConfig);
                 } else {
                     try {
                         throw response.cause();
@@ -51,7 +50,7 @@ public class Config {
                     AsyncMap<String, JsonObject> map = res.result();
 
                     map.get(key, resultingKey -> {
-                        if (resultingKey.succeeded()) {
+                        if (resultingKey.succeeded() && resultingKey.result() != null) {
                             success.handle((new JsonObject()).put("result", resultingKey.result()));
                         } else {
                             error.handle(Fail.SHARED_KEY_NOT_DEFINED.toJson());
