@@ -29,7 +29,11 @@ public class MorphiaManager {
         this.morphia = new Morphia();
         this.morphia.mapPackage(p.getName());
         Config.getInstance().getConfig(configKey, config -> {
-            JsonObject result = config.getJsonObject("result");
+            if(config.failed()){
+                System.err.println(configKey + "::" + config.cause());
+                System.exit(-1);
+            }
+            JsonObject result = config.result().getJsonObject("result");
             this.vertx.executeBlocking(future -> {
 
                 this.mongoClient = new MongoClient(result.getString("host"), result.getInteger("port"));
@@ -37,9 +41,6 @@ public class MorphiaManager {
 
                 future.complete(true);
             }, onComplete);
-        }, event -> {
-            System.err.println(configKey + "::" + event.getString("reason"));
-            System.exit(-1);
         });
 
     }
