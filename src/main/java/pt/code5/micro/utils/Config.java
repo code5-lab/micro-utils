@@ -1,11 +1,8 @@
 package pt.code5.micro.utils;
 
-import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.AsyncMap;
 import io.vertx.core.shareddata.SharedData;
@@ -48,8 +45,8 @@ public class Config {
                 ready.handle(true);
                 readEnvConfigs();
             });
-        }
-        else {
+        } else {
+            System.out.println("env_file not defined");
             // fallback if there is no config file
             readEnvConfigs();
         }
@@ -95,11 +92,11 @@ public class Config {
     }
 
     public void getConfig(String key, Handler<AsyncResult<JsonObject>> resolve) {
-        this.getConfigFromEnv(key, event1 -> {
-            if(event1.succeeded())
-                resolve.handle(event1);
-            this.getConfigFromCluster(key, event -> {
-                if(event1.succeeded())
+        this.getConfigFromEnv(key, event -> {
+            if (event.succeeded())
+                resolve.handle(event);
+            this.getConfigFromCluster(key, event1 -> {
+                if (event1.succeeded())
                     resolve.handle(event);
                 else
                     resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.KEY_NOT_DEFINED))));
@@ -107,9 +104,9 @@ public class Config {
         });
     }
 
-    public void readEnvConfigs(){
-        Map<String,String> envs = System.getenv();
-        for(String envVar : System.getenv().keySet()){
+    public void readEnvConfigs() {
+        Map<String, String> envs = System.getenv();
+        for (String envVar : System.getenv().keySet()) {
             writeEnvConfig(localConfig, envVar, envs.get(envVar));
         }
     }
@@ -117,14 +114,13 @@ public class Config {
     private void writeEnvConfig(JsonObject in, String key, String value) {
         String[] keys = key.split("\\.");
         JsonObject obj = in;
-        if(keys.length == 0) return;
+        if (keys.length == 0) return;
 
-        for(int i = 0; i < keys.length - 1; i++ ) {
-            if(obj.getValue(keys[i]) != null) {
+        for (int i = 0; i < keys.length - 1; i++) {
+            if (obj.getValue(keys[i]) != null) {
                 obj = obj.getJsonObject(keys[i]);
-            }
-            else {
-                obj.put(keys[i],new JsonObject());
+            } else {
+                obj.put(keys[i], new JsonObject());
                 obj = obj.getJsonObject(keys[i]);
             }
         }
@@ -146,7 +142,7 @@ public class Config {
         private Throwable error;
         private JsonObject result;
 
-        public ConfigResult(JsonObject result, Throwable error){
+        public ConfigResult(JsonObject result, Throwable error) {
             this.result = result;
             this.error = error;
         }
