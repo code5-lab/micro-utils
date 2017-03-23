@@ -97,7 +97,7 @@ public class Config {
                 resolve.handle(event);
             this.getConfigFromCluster(key, event1 -> {
                 if (event1.succeeded())
-                    resolve.handle(event);
+                    resolve.handle(event1);
                 else
                     resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.KEY_NOT_DEFINED))));
             });
