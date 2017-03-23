@@ -61,19 +61,19 @@ public class Config {
 
                     map.get(key, resultingValue -> {
                         if (resultingValue.succeeded() && resultingValue.result() != null) {
-                            resolve.handle(new ConfigResult((new JsonObject()).put("result", resultingValue.result()), null));
+                            resolve.handle(new ConfigResult(resultingValue.result()));
                         } else {
-                            resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.SHARED_KEY_NOT_DEFINED))));
+                            resolve.handle(new ConfigResult(Fail.SHARED_KEY_NOT_DEFINED));
 
                         }
                     });
                 } else {
-                    resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.SHARED_CONFIG_NOT_DEFINED))));
+                    resolve.handle(new ConfigResult(Fail.SHARED_CONFIG_NOT_DEFINED));
                 }
             });
         } catch (IllegalStateException e) {
             System.err.println(e.getMessage());
-            resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.NO_CLUSTER))));
+            resolve.handle(new ConfigResult(Fail.NO_CLUSTER));
         }
     }
 
@@ -82,12 +82,12 @@ public class Config {
 
             Object value = this.localConfig.getValue(key);
             if (value != null) {
-                resolve.handle(new ConfigResult((new JsonObject()).put("result", value), null));
+                resolve.handle(new ConfigResult(value));
             } else {
-                resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.LOCAL_KEY_NOT_DEFINED))));
+                resolve.handle(new ConfigResult(Fail.LOCAL_KEY_NOT_DEFINED));
             }
         } else {
-            resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.LOCAL_CONFIG_NOT_DEFINED))));
+            resolve.handle(new ConfigResult(Fail.LOCAL_CONFIG_NOT_DEFINED));
         }
     }
 
@@ -101,7 +101,7 @@ public class Config {
                     if (event1.succeeded())
                         resolve.handle(event1);
                     else
-                        resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.KEY_NOT_DEFINED))));
+                        resolve.handle(new ConfigResult(Fail.KEY_NOT_DEFINED));
                 });
             }
         });
@@ -148,6 +148,14 @@ public class Config {
         public ConfigResult(JsonObject result, Throwable error) {
             this.result = result;
             this.error = error;
+        }
+
+        public ConfigResult(Fail fail) {
+            this.error = new Throwable(String.valueOf(fail));
+        }
+
+        public ConfigResult(Object result) {
+            this.result = (new JsonObject()).put("result", result);
         }
 
         @Override
