@@ -1,17 +1,25 @@
 package pt.code5.micro.utils;
 
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.AsyncMap;
 import io.vertx.core.shareddata.SharedData;
 import pt.code5.micro.utils.vertx.VertxManager;
 
+import java.util.Map;
+
 /**
  * Created by eduardo on 17/03/2017.
  */
-public class Config { //todo: replace with http://vertx.io/docs/vertx-config/java/
-    private static Config ourInstance = new Config();
+public class Config {
+
+    private static Config instance = new Config();
+
     private Vertx vertx;
     private JsonObject localConfig = new JsonObject();
 
@@ -20,7 +28,7 @@ public class Config { //todo: replace with http://vertx.io/docs/vertx-config/jav
     }
 
     public static Config getInstance() {
-        return ourInstance;
+        return instance;
     }
 
     public void boot(Handler<Boolean> ready) {
@@ -38,55 +46,89 @@ public class Config { //todo: replace with http://vertx.io/docs/vertx-config/jav
                     }
                 }
                 ready.handle(true);
+                readEnvConfigs();
             });
+        }
+        else {
+            // fallback if there is no config file
+            readEnvConfigs();
         }
     }
 
-    public void getConfigFromCluster(String key, Handler<JsonObject> success, Handler<JsonObject> error) {
+    public void getConfigFromCluster(String key, Handler<AsyncResult<JsonObject>> resolve) {
         SharedData sd = vertx.sharedData();
         try {
             sd.<String, JsonObject>getClusterWideMap("config", res -> {
                 if (res.succeeded()) {
                     AsyncMap<String, JsonObject> map = res.result();
 
-                    map.get(key, resultingKey -> {
-                        if (resultingKey.succeeded() && resultingKey.result() != null) {
-                            success.handle((new JsonObject()).put("result", resultingKey.result()));
+                    map.get(key, resultingValue -> {
+                        if (resultingValue.succeeded() && resultingValue.result() != null) {
+                            resolve.handle(new ConfigResult((new JsonObject()).put("result", resultingValue.result()), null));
                         } else {
-                            error.handle(Fail.SHARED_KEY_NOT_DEFINED.toJson());
+                            resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.SHARED_KEY_NOT_DEFINED))));
+
                         }
                     });
-
                 } else {
-                    error.handle(Fail.SHARED_CONFIG_NOT_DEFINED.toJson());
+                    resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.SHARED_CONFIG_NOT_DEFINED))));
                 }
             });
         } catch (IllegalStateException e) {
             System.err.println(e.getMessage());
-            error.handle(Fail.NO_CLUSTER.toJson());
+            resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.NO_CLUSTER))));
         }
     }
 
-    public void getConfigFromEnv(String key, Handler<JsonObject> success, Handler<JsonObject> error) {
+    public void getConfigFromEnv(String key, Handler<AsyncResult<JsonObject>> resolve) {
         if (!this.localConfig.isEmpty()) {
 
             Object value = this.localConfig.getValue(key);
             if (value != null) {
-                success.handle((new JsonObject()).put("result", value));
+                resolve.handle(new ConfigResult((new JsonObject()).put("result", value), null));
             } else {
-                error.handle(Fail.LOCAL_KEY_NOT_DEFINED.toJson());
+                resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.LOCAL_KEY_NOT_DEFINED))));
             }
         } else {
-            error.handle(Fail.LOCAL_CONFIG_NOT_DEFINED.toJson());
+            resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.LOCAL_CONFIG_NOT_DEFINED))));
         }
     }
 
-    public void getConfig(String key, Handler<JsonObject> success, Handler<JsonObject> error) {
-        this.getConfigFromCluster(key, success, event -> {
-            this.getConfigFromEnv(key, success, event1 -> {
-                error.handle(Fail.KEY_NOT_DEFINED.toJson());
+    public void getConfig(String key, Handler<AsyncResult<JsonObject>> resolve) {
+        this.getConfigFromEnv(key, event1 -> {
+            if(event1.succeeded())
+                resolve.handle(event1);
+            this.getConfigFromCluster(key, event -> {
+                if(event1.succeeded())
+                    resolve.handle(event);
+                else
+                    resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.KEY_NOT_DEFINED))));
             });
         });
+    }
+
+    public void readEnvConfigs(){
+        Map<String,String> envs = System.getenv();
+        for(String envVar : System.getenv().keySet()){
+            writeEnvConfig(localConfig, envVar, envs.get(envVar));
+        }
+    }
+
+    private void writeEnvConfig(JsonObject in, String key, String value) {
+        String[] keys = key.split("\\.");
+        JsonObject obj = in;
+        if(keys.length == 0) return;
+
+        for(int i = 0; i < keys.length - 1; i++ ) {
+            if(obj.getValue(keys[i]) != null) {
+                obj = obj.getJsonObject(keys[i]);
+            }
+            else {
+                obj.put(keys[i],new JsonObject());
+                obj = obj.getJsonObject(keys[i]);
+            }
+        }
+        obj.put(keys[keys.length - 1], value);
     }
 
     public enum Fail {
@@ -96,6 +138,37 @@ public class Config { //todo: replace with http://vertx.io/docs/vertx-config/jav
 
         public JsonObject toJson() {
             return (new JsonObject()).put("reason", this);
+        }
+    }
+
+    public class ConfigResult implements AsyncResult<JsonObject> {
+
+        private Throwable error;
+        private JsonObject result;
+
+        public ConfigResult(JsonObject result, Throwable error){
+            this.result = result;
+            this.error = error;
+        }
+
+        @Override
+        public JsonObject result() {
+            return this.result;
+        }
+
+        @Override
+        public Throwable cause() {
+            return error;
+        }
+
+        @Override
+        public boolean succeeded() {
+            return error == null;
+        }
+
+        @Override
+        public boolean failed() {
+            return error != null;
         }
     }
 }
