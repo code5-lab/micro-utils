@@ -93,14 +93,17 @@ public class Config {
 
     public void getConfig(String key, Handler<AsyncResult<JsonObject>> resolve) {
         this.getConfigFromEnv(key, event -> {
-            if (event.succeeded())
+            if (event.succeeded()){
                 resolve.handle(event);
-            this.getConfigFromCluster(key, event1 -> {
-                if (event1.succeeded())
-                    resolve.handle(event1);
-                else
-                    resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.KEY_NOT_DEFINED))));
-            });
+            }
+            else{
+                this.getConfigFromCluster(key, event1 -> {
+                    if (event1.succeeded())
+                        resolve.handle(event1);
+                    else
+                        resolve.handle(new ConfigResult(null, new Throwable(String.valueOf(Fail.KEY_NOT_DEFINED))));
+                });
+            }
         });
     }
 
